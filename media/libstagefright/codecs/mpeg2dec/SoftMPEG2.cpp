@@ -207,7 +207,9 @@ status_t SoftMPEG2::resetDecoder() {
     /* Set number of cores/threads to be used by the codec */
     setNumCores();
 
+    mStride = 0;
     mSignalledError = false;
+
     return OK;
 }
 
@@ -390,7 +392,8 @@ status_t SoftMPEG2::initDecoder() {
     resetPlugin();
 
     /* Set the run time (dynamic) parameters */
-    setParams(displayStride);
+    mStride = outputBufferWidth();
+    setParams(mStride);
 
     /* Set number of cores/threads to be used by the codec */
     setNumCores();
@@ -509,7 +512,7 @@ bool SoftMPEG2::setDecodeArgs(
     uint8_t *pBuf;
     if (outHeader) {
         if (outHeader->nAllocLen < sizeY + (sizeUV * 2)) {
-            android_errorWriteLog(0x534e4554, "27569635");
+            android_errorWriteLog(0x534e4554, "27833616");
             return false;
         }
         pBuf = outHeader->pBuffer;
@@ -567,6 +570,12 @@ void SoftMPEG2::onQueueFilled(OMX_U32 portIndex) {
 
     List<BufferInfo *> &inQueue = getPortQueue(kInputPortIndex);
     List<BufferInfo *> &outQueue = getPortQueue(kOutputPortIndex);
+
+    if (outputBufferWidth() != mStride) {
+        /* Set the run-time (dynamic) parameters */
+        mStride = outputBufferWidth();
+        setParams(mStride);
+    }
 
     /* If input EOS is seen and decoder is not in flush mode,
      * set the decoder in flush mode.
@@ -711,6 +720,8 @@ void SoftMPEG2::onQueueFilled(OMX_U32 portIndex) {
                 mChangingResolution = false;
                 resetDecoder();
                 resetPlugin();
+                mStride = outputBufferWidth();
+                setParams(mStride);
                 continue;
             }
 

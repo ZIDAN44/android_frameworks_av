@@ -2382,7 +2382,7 @@ void AudioFlinger::releaseAudioSessionId(int audioSession, pid_t pid)
     ALOGW_IF(caller != getpid_cached, "session id %d not found for pid %d", audioSession, caller);
 }
 
-bool AudioFlinger::isSessionAcquired_l(audio_session_t audioSession)
+bool AudioFlinger::isSessionAcquired_l(int audioSession)
 {
     size_t num = mAudioSessionRefs.size();
     for (size_t i = 0; i < num; i++) {
@@ -2735,7 +2735,7 @@ sp<IEffect> AudioFlinger::createEffect(
         sp<Client> client = registerPid(pid);
 
         // create effect on selected output thread
-        bool pinned = (sessionId > AUDIO_SESSION_OUTPUT_MIX) && isSessionAcquired_l((audio_session_t)sessionId);
+        bool pinned = (sessionId > AUDIO_SESSION_OUTPUT_MIX) && isSessionAcquired_l(sessionId);
         handle = thread->createEffect_l(client, effectClient, priority, sessionId,
                 &desc, enabled, &lStatus, pinned);
         if (handle != 0 && id != NULL) {
@@ -2938,7 +2938,7 @@ bool AudioFlinger::updateOrphanEffectChains(const sp<AudioFlinger::EffectModule>
     if (index >= 0) {
         sp<EffectChain> chain = mOrphanEffectChains.valueAt(index);
         if (chain->removeEffect_l(effect, true) == 0) {
-            ALOGV("updateOrphanEffectChains removing effect chain at index %d", index);
+            ALOGV("updateOrphanEffectChains removing effect chain at index %zd", index);
             mOrphanEffectChains.removeItemsAt(index);
         }
         return true;

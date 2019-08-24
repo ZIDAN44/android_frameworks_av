@@ -164,15 +164,13 @@ int  Virtualizer_setParameter  (EffectContext *pContext,
                                 uint32_t       valueSize,
                                 void          *pValue);
 int  Virtualizer_getParameter  (EffectContext *pContext,
-                                uint32_t       paramSize,
-                                void          *pParam,
-                                uint32_t      *pValueSize,
-                                void          *pValue);
+                               void           *pParam,
+                               uint32_t       *pValueSize,
+                               void           *pValue);
 int  Equalizer_setParameter    (EffectContext *pContext,
-                                uint32_t       paramSize,
-                                void          *pParam,
-                                uint32_t       valueSize,
-                                void          *pValue);
+                               void *pParam,
+                               uint32_t valueSize,
+                               void *pValue);
 int  Equalizer_getParameter    (EffectContext *pContext,
                                 uint32_t       paramSize,
                                 void          *pParam,
@@ -2461,27 +2459,41 @@ int Equalizer_getParameter(EffectContext *pContext,
                 __func__, *(int16_t *)pValue, *((int16_t *)pValue + 1));
         break;
 
-    case EQ_PARAM_BAND_FREQ_RANGE: {
-        if (paramSize < 2 * sizeof(int32_t)) {
-            ALOGV("%s EQ_PARAM_BAND_FREQ_RANGE invalid paramSize: %u", __func__, paramSize);
+    case EQ_PARAM_BAND_LEVEL:
+        param2 = *pParamTemp;
+        if (param2 < 0 || param2 >= FIVEBAND_NUMBANDS) {
             status = -EINVAL;
+            if (param2 < 0) {
+                android_errorWriteLog(0x534e4554, "32438598");
+                ALOGW("\tERROR Equalizer_getParameter() EQ_PARAM_BAND_LEVEL band %d", param2);
+            }
             break;
         }
-        if (*pValueSize < 2 * sizeof(int32_t)) {
-            ALOGV("%s EQ_PARAM_BAND_FREQ_RANGE invalid *pValueSize %u", __func__, *pValueSize);
+        *(int16_t *)pValue = (int16_t)EqualizerGetBandLevel(pContext, param2);
+        //ALOGV("\tEqualizer_getParameter() EQ_PARAM_BAND_LEVEL band %d, level %d",
+        //      param2, *(int32_t *)pValue);
+        break;
+
+    case EQ_PARAM_CENTER_FREQ:
+        param2 = *pParamTemp;
+        if (param2 < 0 || param2 >= FIVEBAND_NUMBANDS) {
             status = -EINVAL;
+            if (param2 < 0) {
+                android_errorWriteLog(0x534e4554, "32436341");
+                ALOGW("\tERROR Equalizer_getParameter() EQ_PARAM_CENTER_FREQ band %d", param2);
+            }
             break;
         }
         *pValueSize = 2 * sizeof(int32_t);
 
-        const int32_t band = params[1];
-        if (band < 0 || band >= FIVEBAND_NUMBANDS) {
-            if (band < 0) {
-                android_errorWriteLog(0x534e4554, "32247948");
-                ALOGW("%s EQ_PARAM_BAND_FREQ_RANGE invalid band %d",
-                        __func__, band);
-            }
+    case EQ_PARAM_BAND_FREQ_RANGE:
+        param2 = *pParamTemp;
+        if (param2 < 0 || param2 >= FIVEBAND_NUMBANDS) {
             status = -EINVAL;
+            if (param2 < 0) {
+                android_errorWriteLog(0x534e4554, "32247948");
+                ALOGW("\tERROR Equalizer_getParameter() EQ_PARAM_BAND_FREQ_RANGE band %d", param2);
+            }
             break;
         }
         EqualizerGetBandFreqRange(pContext, band, (uint32_t *)pValue, ((uint32_t *)pValue + 1));
@@ -2529,18 +2541,26 @@ int Equalizer_getParameter(EffectContext *pContext,
             break;
         }
 
-        const int32_t preset = params[1];
-        if ((preset < 0 && preset != PRESET_CUSTOM) ||  preset >= EqualizerGetNumPresets()) {
-            if (preset < 0) {
-                android_errorWriteLog(0x534e4554, "32448258");
-                ALOGE("%s EQ_PARAM_GET_PRESET_NAME preset %d", __func__, preset);
-            }
+    case EQ_PARAM_GET_PRESET_NAME:
+        param2 = *pParamTemp;
+        if ((param2 < 0 && param2 != PRESET_CUSTOM) ||  param2 >= EqualizerGetNumPresets()) {
             status = -EINVAL;
+            if (param2 < 0) {
+                android_errorWriteLog(0x534e4554, "32448258");
+                ALOGE("\tERROR Equalizer_getParameter() EQ_PARAM_GET_PRESET_NAME preset %d",
+                        param2);
+            }
             break;
         }
 
-        char * const name = (char *)pValue;
-        strncpy(name, EqualizerGetPresetName(preset), *pValueSize - 1);
+        if (*pValueSize < 1) {
+            status = -EINVAL;
+            android_errorWriteLog(0x534e4554, "37536407");
+            break;
+        }
+
+        name = (char *)pValue;
+        strncpy(name, EqualizerGetPresetName(param2), *pValueSize - 1);
         name[*pValueSize - 1] = 0;
         *pValueSize = strlen(name) + 1;
         ALOGVV("%s EQ_PARAM_GET_PRESET_NAME preset %d, name %s len %d",
@@ -2592,28 +2612,23 @@ int Equalizer_getParameter(EffectContext *pContext,
 // Outputs:
 //
 //----------------------------------------------------------------------------
-int Equalizer_setParameter(EffectContext *pContext,
-                           uint32_t       paramSize,
-                           void          *pParam,
-                           uint32_t       valueSize,
-                           void          *pValue) {
+int Equalizer_setParameter (EffectContext *pContext,
+                            void *pParam,
+                            uint32_t valueSize,
+                            void *pValue) {
     int status = 0;
     int32_t *params = (int32_t *)pParam;
 
     ALOGVV("%s start", __func__);
 
-    if (paramSize < sizeof(int32_t)) {
-        ALOGV("%s invalid paramSize: %u", __func__, paramSize);
-        return -EINVAL;
-    }
-    switch (params[0]) {
-    case EQ_PARAM_CUR_PRESET: {
+    //ALOGV("\tEqualizer_setParameter start");
+    switch (param) {
+    case EQ_PARAM_CUR_PRESET:
         if (valueSize < sizeof(int16_t)) {
-            ALOGV("%s EQ_PARAM_CUR_PRESET invalid valueSize %u", __func__, valueSize);
-            status = -EINVAL;
-            break;
+          status = -EINVAL;
+          break;
         }
-        const int32_t preset = (int32_t)*(uint16_t *)pValue;
+        preset = (int32_t)(*(uint16_t *)pValue);
 
         ALOGVV("%s EQ_PARAM_CUR_PRESET %d", __func__, preset);
         if (preset >= EqualizerGetNumPresets() || preset < 0) {
@@ -2622,39 +2637,31 @@ int Equalizer_setParameter(EffectContext *pContext,
             break;
         }
         EqualizerSetPreset(pContext, preset);
-    } break;
-
-    case EQ_PARAM_BAND_LEVEL: {
-        if (paramSize < 2 * sizeof(int32_t)) {
-            ALOGV("%s EQ_PARAM_BAND_LEVEL invalid paramSize: %u", __func__, paramSize);
-            status = -EINVAL;
-            break;
-        }
+        break;
+    case EQ_PARAM_BAND_LEVEL:
         if (valueSize < sizeof(int16_t)) {
-            ALOGV("%s EQ_PARAM_BAND_LEVEL invalid valueSize %u", __func__, valueSize);
-            status = -EINVAL;
-            break;
+          status = -EINVAL;
+          break;
         }
-        const int32_t band =  params[1];
-        const int32_t level = (int32_t)*(int16_t *)pValue;
-        ALOGVV("%s EQ_PARAM_BAND_LEVEL band %d, level %d", __func__, band, level);
+        band =  *pParamTemp;
+        level = (int32_t)(*(int16_t *)pValue);
+        //ALOGV("\tEqualizer_setParameter() EQ_PARAM_BAND_LEVEL band %d, level %d", band, level);
         if (band < 0 || band >= FIVEBAND_NUMBANDS) {
+            status = -EINVAL;
             if (band < 0) {
                 android_errorWriteLog(0x534e4554, "32095626");
-                ALOGE("%s EQ_PARAM_BAND_LEVEL invalid band %d", __func__, band);
+                ALOGE("\tERROR Equalizer_setParameter() EQ_PARAM_BAND_LEVEL band %d", band);
             }
-            status = -EINVAL;
             break;
         }
         EqualizerSetBandLevel(pContext, band, level);
     } break;
 
     case EQ_PARAM_PROPERTIES: {
-        ALOGVV("%s EQ_PARAM_PROPERTIES", __func__);
+        //ALOGV("\tEqualizer_setParameter() EQ_PARAM_PROPERTIES");
         if (valueSize < sizeof(int16_t)) {
-            ALOGV("%s EQ_PARAM_PROPERTIES invalid valueSize %u", __func__, valueSize);
-            status = -EINVAL;
-            break;
+          status = -EINVAL;
+          break;
         }
         int16_t *p = (int16_t *)pValue;
         if ((int)p[0] >= EqualizerGetNumPresets()) {
@@ -2665,11 +2672,10 @@ int Equalizer_setParameter(EffectContext *pContext,
         if (p[0] >= 0) {
             EqualizerSetPreset(pContext, (int)p[0]);
         } else {
-            constexpr uint32_t valueSizeRequired = (2 + FIVEBAND_NUMBANDS) * sizeof(int16_t);
-            if (valueSize < valueSizeRequired) {
+            if (valueSize < (2 + FIVEBAND_NUMBANDS) * sizeof(int16_t)) {
               android_errorWriteLog(0x534e4554, "37563371");
-              ALOGE("%s EQ_PARAM_PROPERTIES invalid valueSize %u < %u",
-                      __func__, valueSize, valueSizeRequired);
+              ALOGE("\tERROR Equalizer_setParameter() EQ_PARAM_PROPERTIES valueSize %d < %d",
+                    (int)valueSize, (int)((2 + FIVEBAND_NUMBANDS) * sizeof(int16_t)));
               status = -EINVAL;
               break;
             }
@@ -3348,7 +3354,8 @@ int Effect_command(effect_handle_t  self,
                 ALOGV("\tLVM_ERROR : EFFECT_CMD_GET_PARAM: psize too big");
                 return -EINVAL;
             }
-            const uint32_t paddedParamSize = computeParamVOffset(p);
+            uint32_t paddedParamSize = ((p->psize + sizeof(int32_t) - 1) / sizeof(int32_t)) *
+                    sizeof(int32_t);
             if ((EFFECT_PARAM_SIZE_MAX - sizeof(effect_param_t) < paddedParamSize) ||
                 (EFFECT_PARAM_SIZE_MAX - sizeof(effect_param_t) - paddedParamSize <
                     p->vsize)) {
@@ -3512,10 +3519,9 @@ int Effect_command(effect_handle_t  self,
                 const uint32_t voffset = computeParamVOffset(p);
 
                 *(int *)pReplyData = android::Equalizer_setParameter(pContext,
-                                                                     p->psize,
-                                                                     (void *)p->data,
-                                                                     p->vsize,
-                                                                     p->data + voffset);
+                                                                    (void *)p->data,
+                                                                    p->vsize,
+                                                                    p->data + p->psize);
             }
             if(pContext->EffectType == LVM_VOLUME){
                 //ALOGV("\tVolume_command cmdCode Case: EFFECT_CMD_SET_PARAM start");

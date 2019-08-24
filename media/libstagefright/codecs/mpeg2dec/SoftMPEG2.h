@@ -107,6 +107,7 @@ private:
     bool mFlushNeeded;
     bool mSignalledError;
     bool mWaitForI;
+    size_t mStride;
 
     status_t initDecoder();
     status_t deInitDecoder();

@@ -387,7 +387,7 @@ void GraphicBufferSource::codecBufferEmptied(OMX_BUFFERHEADERTYPE* header, int f
     int id = codecBuffer.mBuf;
     sp<Fence> fence = new Fence(fenceFd);
     if (mBufferSlot[id] != NULL &&
-        mBufferSlot[id]->handle == codecBuffer.mGraphicBuffer->handle) {
+            mBufferSlot[id]->handle == codecBuffer.mGraphicBuffer->handle) {
         ALOGV("cbi %d matches bq slot %d, handle=%p",
                 cbi, id, mBufferSlot[id]->handle);
 

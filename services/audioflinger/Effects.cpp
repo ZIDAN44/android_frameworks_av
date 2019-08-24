@@ -59,7 +59,7 @@ AudioFlinger::EffectModule::EffectModule(ThreadBase *thread,
                                         const wp<AudioFlinger::EffectChain>& chain,
                                         effect_descriptor_t *desc,
                                         int id,
-                                        audio_session_t sessionId,
+                                        int sessionId,
                                         bool pinned)
     : mPinned(pinned),
       mThread(thread), mChain(chain), mId(id), mSessionId(sessionId),
@@ -1177,8 +1177,7 @@ status_t AudioFlinger::EffectHandle::enable()
                 t->broadcast_l();
             }
             if (!effect->isOffloadable()) {
-                if (thread->type() == ThreadBase::OFFLOAD ||
-                   (thread->type() == ThreadBase::DIRECT && thread->mIsDirectPcm)) {
+                if (thread->type() == ThreadBase::OFFLOAD) {
                     PlaybackThread *t = (PlaybackThread *)thread.get();
                     t->invalidateTracks(AUDIO_STREAM_MUSIC);
                 }
@@ -1217,8 +1216,7 @@ status_t AudioFlinger::EffectHandle::disable()
     sp<ThreadBase> thread = effect->thread().promote();
     if (thread != 0) {
         thread->checkSuspendOnEffectEnabled(effect, false, effect->sessionId());
-        if ((thread->type() == ThreadBase::OFFLOAD) ||
-            (thread->type() == ThreadBase::DIRECT && thread->mIsDirectPcm)){
+        if (thread->type() == ThreadBase::OFFLOAD) {
             PlaybackThread *t = (PlaybackThread *)thread.get();
             Mutex::Autolock _l(t->mLock);
             t->broadcast_l();
@@ -1610,7 +1608,7 @@ status_t AudioFlinger::EffectChain::createEffect_l(sp<EffectModule>& effect,
                                                    ThreadBase *thread,
                                                    effect_descriptor_t *desc,
                                                    int id,
-                                                   audio_session_t sessionId,
+                                                   int sessionId,
                                                    bool pinned)
 {
     Mutex::Autolock _l(mLock);
@@ -1778,6 +1776,7 @@ size_t AudioFlinger::EffectChain::removeEffect_l(const sp<EffectModule>& effect,
             mEffects.removeAt(i);
             ALOGV("removeEffect_l() effect %p, removed from chain %p at rank %d", effect.get(),
                     this, i);
+
             break;
         }
     }

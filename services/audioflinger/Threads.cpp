@@ -1254,7 +1254,7 @@ sp<AudioFlinger::EffectHandle> AudioFlinger::ThreadBase::createEffect_l(
             }
             effectRegistered = true;
             // create a new effect module if none present in the chain
-            lStatus = chain->createEffect_l(effect, this, desc, id, (audio_session_t)sessionId, pinned);
+            lStatus = chain->createEffect_l(effect, this, desc, id, sessionId, pinned);
             if (lStatus != NO_ERROR) {
                 goto Exit;
             }
